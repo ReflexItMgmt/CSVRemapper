@@ -5,6 +5,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"github.com/lithammer/fuzzysearch/fuzzy"
 	"io/ioutil"
 	"log"
 	"os"
@@ -18,19 +19,21 @@ var (
 )
 
 type MapFile struct {
-	Name       string            `json:"name"`
-	Records    [][]string        `json:"generated_records,omitempty"`      // generated at runtime
-	Columns    map[string]string `json:"columns"`                          // [original col][new col]
-	ManualRows map[string]string `json:"manual_rows,omitempty"`            // [original row][new row] manual rows to import
-	PosMap     map[string]int    `json:"generated_pos_original,omitempty"` // [original pos][new pos] generated at runtime
+	Name        string            `json:"name"`
+	Records     [][]string        `json:"generated_records,omitempty"`      // generated at runtime
+	Columns     map[string]string `json:"columns"`                          // [original col][new col]
+	FuzzColumns map[string]string `json:"fuzz_columns,omitempty"`           // [original col][new col] try to suggest matches
+	FuzzPosMap  map[string]int    `json:"fuzz_pos_map,omitempty"`           // [original pos][new pos] generated at runtime
+	PosMap      map[string]int    `json:"generated_pos_original,omitempty"` // [original pos][new pos] generated at runtime
 }
 
 type Mappings struct {
-	Name    string         `json:"name"`
-	Files   []MapFile      `json:"files,omitempty"`               // mappings for old col to new col
-	Records [][]string     `json:"generated_records,omitempty"`   // generated at runtime
-	PosMap  map[string]int `json:"generated_pos_final,omitempty"` // [final col][pos] generated at runtime
-	PosMax  int            `json:"generated_pos_max,omitempty"`   // [max len for col] generated at runtime
+	Name      string                    `json:"name"`
+	Files     []MapFile                 `json:"files,omitempty"`                // mappings for old col to new col
+	Records   [][]string                `json:"generated_records,omitempty"`    // generated at runtime
+	RecordMap map[string]map[string]int `json:"generated_record_map,omitempty"` // [map file][old row][new row] generated at runtime
+	PosMap    map[string]int            `json:"generated_pos_final,omitempty"`  // [final col][pos] generated at runtime
+	PosMax    int                       `json:"generated_pos_max,omitempty"`    // [max len for col] generated at runtime
 }
 
 func main() {
@@ -41,6 +44,10 @@ func main() {
 		m.Records = readCsvRecords(m.Name)
 	}
 
+	if m.RecordMap == nil {
+		m.RecordMap = make(map[string]map[string]int)
+	}
+
 	// generate final positions
 	m.PosMap = make(map[string]int)
 	for i, r := range m.Records[0] {
@@ -49,6 +56,10 @@ func main() {
 
 	// generate mappings for each file to the final file, and their positions
 	for _, mapFile := range m.Files {
+		if m.RecordMap[mapFile.Name] == nil {
+			m.RecordMap[mapFile.Name] = make(map[string]int)
+		}
+
 		mapFile.PosMap = make(map[string]int)
 
 		mapFile.Records = readCsvRecords(mapFile.Name)
@@ -62,6 +73,17 @@ func main() {
 					if newColPos > m.PosMax {
 						m.PosMax = newColPos
 					}
+				}
+			}
+		}
+
+		mapFile.FuzzPosMap = make(map[string]int)
+
+		for ogColPos, ogCol := range mapFile.Records[0] {
+			if newCol, ok := mapFile.FuzzColumns[ogCol]; ok {
+				if newColPos, ok := m.PosMap[newCol]; ok {
+					log.Printf("%s: Mapped fuzzy suggest %s -> %s (%v -> %v)", mapFile.Name, ogCol, newCol, ogColPos, newColPos)
+					mapFile.FuzzPosMap[strconv.Itoa(ogColPos)] = newColPos
 				}
 			}
 		}
@@ -86,6 +108,26 @@ func main() {
 			// Print current row, ask for new location to insert
 			if ogRowPos != 0 {
 				log.Printf("EDITING:  %s\n", strings.Join(ogRow, ", "))
+			}
+
+			for ogColFuzz, newColFuzz := range mapFile.FuzzPosMap {
+				suggestions := make(fuzzy.Ranks, 0)
+				fuzzEntries := make([]string, 0)
+				fuzzEntriesLookup := make(map[string]int)
+
+				for newRowFuzzPos, newRowFuzz := range m.Records {
+					fuzzEntries = append(fuzzEntries, newRowFuzz[newColFuzz])
+					fuzzEntriesLookup[m.Records[newRowFuzzPos][newColFuzz]] = newRowFuzzPos
+				}
+
+				ogColFuzzPos, _ := strconv.Atoi(ogColFuzz)
+				suggestions = append(suggestions, fuzzy.RankFind(ogRow[ogColFuzzPos], fuzzEntries)...)
+
+				if len(suggestions) > 0 {
+					for _, choice := range suggestions {
+						log.Printf("Suggested row %v for %s, %s", choice.OriginalIndex+1, choice.Source, strings.Join(m.Records[choice.OriginalIndex], ", "))
+					}
+				}
 			}
 
 			newRowPos := askChoiceAllowNull("Choose row to insert into")
@@ -136,13 +178,14 @@ func main() {
 
 				if ok {
 					//log.Printf("Found matching row: %v / %v / %s / %v\n", newColPosMap, ok, ogCol, ogColPos)
-					newRow[newColPosMap] = ogCol  // set [new row][new col] to old record
-					m.Records[newRowPos] = newRow // set records[new pos] to new modified row
+					newRow[newColPosMap] = ogCol                                      // set [new row][new col] to old record
+					m.Records[newRowPos] = newRow                                     // set records[new pos] to new modified row
+					m.RecordMap[mapFile.Name][strconv.Itoa(ogRowPos)] = newRowPos + 1 // save recordMap[old row][new row] for history
 					//log.Printf("m.Records[newRowPos][newColPosMap]: %s\n", m.Records[newRowPos][newColPosMap])
 				}
 			}
 			//log.Printf("m.Records[newRowPos]: %s\n", m.Records[newRowPos])
-			log.Printf("INSERTED: %s\n", strings.Join(m.Records[newRowPos], ", "))
+			log.Printf("INSERTED: %s\n\n", strings.Join(m.Records[newRowPos], ", "))
 
 			//for oldColPos, newColPos := range mapFile.PosMap {
 			//	log.Printf("oldColPos: %s / newColPos: %v\n", oldColPos, newColPos)
@@ -152,10 +195,10 @@ func main() {
 			//}
 			//log.Printf()
 		}
-
-		saveRemapped(m)
-		saveAllAsCsv(m)
 	}
+
+	saveRemapped(m)
+	saveAllAsCsv(m)
 
 	//log.Printf("%s\n", m)
 
@@ -337,5 +380,8 @@ func saveAsCsv(name string, m Mappings) {
 
 	if err := writer.Error(); err != nil {
 		fmt.Println("oops, there was an error writing to the csv file :(")
+		return
 	}
+
+	log.Printf("SAVED: %s\n", name)
 }
