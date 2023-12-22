@@ -102,7 +102,6 @@ func main() {
 			if newRowPos == -3 {
 				newRecords := make([][]string, len(m.Records)+1)
 				for n0, r0 := range m.Records {
-					log.Printf("inserting %v\n", r0)
 					newRecords[n0] = r0
 				}
 
@@ -274,8 +273,10 @@ func askConfirm(msg string, yesDefault bool) bool {
 		return false
 	case "y":
 		return true
-	default:
+	case "":
 		return yesDefault
+	default:
+		return false
 	}
 }
 
