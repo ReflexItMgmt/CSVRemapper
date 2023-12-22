@@ -34,7 +34,11 @@ type Mappings struct {
 
 func main() {
 	m := *readMappings()
-	m.Records = readCsvRecords(m.Name)
+
+	// load initial records from csv, we rely on the json from here on out
+	if m.Records == nil || len(m.Records) == 0 {
+		m.Records = readCsvRecords(m.Name)
+	}
 
 	// generate final positions
 	m.PosMap = make(map[string]int)
@@ -60,6 +64,7 @@ func main() {
 				}
 			}
 		}
+
 		//log.Printf("%s\n", file)
 
 		// map rows 66 to 105 as an example
