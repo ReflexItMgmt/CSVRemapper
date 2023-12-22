@@ -18,10 +18,11 @@ var (
 )
 
 type MapFile struct {
-	Name    string            `json:"name"`
-	Records [][]string        `json:"generated_records,omitempty"`      // generated at runtime
-	Columns map[string]string `json:"columns"`                          // [original col][new col]
-	PosMap  map[string]int    `json:"generated_pos_original,omitempty"` // [original pos][new pos] generated at runtime
+	Name       string            `json:"name"`
+	Records    [][]string        `json:"generated_records,omitempty"`      // generated at runtime
+	Columns    map[string]string `json:"columns"`                          // [original col][new col]
+	ManualRows map[string]string `json:"manual_rows,omitempty"`            // [original row][new row] manual rows to import
+	PosMap     map[string]int    `json:"generated_pos_original,omitempty"` // [original pos][new pos] generated at runtime
 }
 
 type Mappings struct {
@@ -69,6 +70,8 @@ func main() {
 
 		// map rows 66 to 105 as an example
 
+		// Loop through all records and ask to import each
+		log.Printf("When choosing a row to insert, you can press enter to skip, -2 to go back, -3 for new row, -4 to skip rest and save file")
 		for i := 0; i < len(mapFile.Records); i++ {
 			// Get row
 			ogRowPos := i
@@ -85,12 +88,26 @@ func main() {
 				log.Printf("EDITING:  %s\n", strings.Join(ogRow, ", "))
 			}
 
-			newRowPos := askChoiceAllowNull("Choose row to insert into (enter to skip, -2 to go back)")
+			newRowPos := askChoiceAllowNull("Choose row to insert into")
 			if newRowPos == -1 {
 				continue
 			} else if newRowPos == -2 {
 				i -= 2
 				continue
+			} else if newRowPos == -4 {
+				break
+			}
+
+			// If inserting a new row, resize m.Records
+			if newRowPos == -3 {
+				newRecords := make([][]string, len(m.Records)+1)
+				for n0, r0 := range m.Records {
+					log.Printf("inserting %v\n", r0)
+					newRecords[n0] = r0
+				}
+
+				newRowPos = len(newRecords)
+				m.Records = newRecords
 			}
 
 			if newRowPos > len(m.Records) {
