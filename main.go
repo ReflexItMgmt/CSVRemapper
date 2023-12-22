@@ -88,17 +88,51 @@ func main() {
 			}
 		}
 
+		log.Printf("INFO: When choosing a row to insert, you can press enter to skip, -2 to go back, -3 for new row, -4 to skip rest and save file")
+
+		// show progress, ask to skip this file
+		log.Printf("%.2f%% records from %s have been imported, there are %v records missing",
+			100*float64(len(m.RecordMap[mapFile.Name]))/float64(len(mapFile.Records)-1),
+			mapFile.Name,
+			len(mapFile.Records)-len(m.RecordMap[mapFile.Name])-1,
+		)
+
+		if askConfirm("print missing records?", false) {
+			for oldRowPos, oldRow := range mapFile.Records {
+				if oldRowPos == 0 {
+					continue
+				}
+
+				if _, ok := m.RecordMap[mapFile.Name][strconv.Itoa(oldRowPos)]; !ok {
+					log.Printf("MISSING: %s\n", strings.Join(oldRow, ", "))
+				}
+			}
+		}
+
+		if askConfirm("skip this file?", false) {
+			continue
+		}
+
+		skipModified := askConfirm("skip already added records?", true)
+
 		// Loop through all records and ask to import each
-		log.Printf("When choosing a row to insert, you can press enter to skip, -2 to go back, -3 for new row, -4 to skip rest and save file")
 		for i := 0; i < len(mapFile.Records); i++ {
 			// Get row
 			ogRowPos := i
 			ogRow := mapFile.Records[ogRowPos]
 
-			// Print header for this row
+			// Print header for this row and skip
 			if ogRowPos == 0 {
-				log.Printf("HEADER: %s\n", strings.Join(ogRow, ", "))
+				log.Printf("HEADER:   %s\n", strings.Join(ogRow, ", "))
 				continue
+			}
+
+			// Show message if skipping row
+			if skipModified {
+				if _, ok := m.RecordMap[mapFile.Name][strconv.Itoa(ogRowPos)]; ok {
+					log.Printf("SKIPPED:  %s\n", strings.Join(ogRow, ", "))
+					continue
+				}
 			}
 
 			// Print current row, ask for new location to insert
@@ -122,7 +156,7 @@ func main() {
 
 				if len(suggestions) > 0 {
 					for _, choice := range suggestions {
-						log.Printf("Suggested row %v for %s, %s", choice.OriginalIndex+1, choice.Source, strings.Join(m.Records[choice.OriginalIndex], ", "))
+						log.Printf("SUGGEST:  Row %v for %s, %s", choice.OriginalIndex+1, choice.Source, strings.Join(m.Records[choice.OriginalIndex], ", "))
 					}
 				}
 			}
