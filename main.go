@@ -133,7 +133,9 @@ func main() {
 		}
 
 		saveRemapped(m)
+		saveAllAsCsv(m)
 	}
+
 	//log.Printf("%s\n", m)
 
 	//chooseAndPrintColumns()
@@ -288,4 +290,29 @@ func readMappings() *Mappings {
 	}
 
 	return nil
+}
+
+func saveAllAsCsv(m Mappings) {
+	saveAsCsv("remapped/combined.csv", m)
+	saveAsCsv(fmt.Sprintf("remapped/combined-%s.csv", time.Now().Format(time.RFC3339)), m)
+}
+
+func saveAsCsv(name string, m Mappings) {
+	file, err := os.Create(name)
+	if err != nil {
+		fmt.Println("oops, couldn't create the file :(")
+		return
+	}
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	err = writer.WriteAll(m.Records)
+	if err != nil {
+		log.Printf("Failed to convert to csv: %v\n", err)
+		return
+	}
+
+	if err := writer.Error(); err != nil {
+		fmt.Println("oops, there was an error writing to the csv file :(")
+	}
 }
