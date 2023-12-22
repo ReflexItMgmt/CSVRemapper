@@ -3,12 +3,18 @@ package main
 import (
 	"bufio"
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
 	"strings"
+	"time"
+)
+
+var (
+	fileMode = os.FileMode(0644)
 )
 
 type MapFile struct {
@@ -27,19 +33,9 @@ type Mappings struct {
 }
 
 func main() {
-	m := Mappings{
-		Name: "combined.csv",
-		Files: []MapFile{{
-			Name: "gsuite-tenant-users.csv",
-			Columns: map[string]string{
-				"Firstname": "GS_FIRST",
-				"Lastname":  "GS_LAST",
-				"Email":     "GS_EMAIL",
-			},
-		}},
-	}
-
+	m := *readMappings()
 	m.Records = readCsvRecords(m.Name)
+
 	// generate final positions
 	m.PosMap = make(map[string]int)
 	for i, r := range m.Records[0] {
@@ -135,6 +131,8 @@ func main() {
 			//}
 			//log.Printf()
 		}
+
+		saveRemapped(m)
 	}
 	//log.Printf("%s\n", m)
 
@@ -255,4 +253,39 @@ func askConfirm(msg string, yesDefault bool) bool {
 	default:
 		return yesDefault
 	}
+}
+
+func saveRemapped(a any) {
+	j, err := json.MarshalIndent(a, "", "    ")
+	if err != nil {
+		log.Fatalf("failed to marshal: %v\n", err)
+	}
+
+	saveFile("remapped/data.json", j)
+	saveFile(fmt.Sprintf("remapped/data-%s.json", time.Now().Format(time.RFC3339)), j)
+}
+
+func saveFile(file string, j []byte) {
+	err := os.WriteFile(file, j, fileMode)
+	if err != nil {
+		log.Printf("failed to save %s: %v\n", file, err)
+	} else {
+		log.Printf("SAVED: %s\n", file)
+	}
+}
+
+func readMappings() *Mappings {
+	d, err := os.ReadFile("remapped/data.json")
+	if err != nil {
+		log.Fatalf("Failed to open remapped/data.json: %v\n", err)
+	}
+
+	var m *Mappings
+	if err := json.Unmarshal(d, &m); err != nil {
+		log.Fatalf("Failed to unmarshal remapped/data.json: %v\n", err)
+	} else {
+		return m
+	}
+
+	return nil
 }
