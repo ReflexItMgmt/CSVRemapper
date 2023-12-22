@@ -55,7 +55,7 @@ func main() {
 	}
 
 	// generate mappings for each file to the final file, and their positions
-	for _, mapFile := range m.Files {
+	for mapFileIndex, mapFile := range m.Files {
 		if m.RecordMap[mapFile.Name] == nil {
 			m.RecordMap[mapFile.Name] = make(map[string]int)
 		}
@@ -217,6 +217,8 @@ func main() {
 
 			log.Printf("INSERTED: %s\n\n", strings.Join(m.Records[newRowPos], ", "))
 		}
+
+		m.Files[mapFileIndex] = mapFile
 	}
 
 	saveRemapped(m)
