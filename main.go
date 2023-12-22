@@ -60,8 +60,8 @@ func main() {
 			m.RecordMap[mapFile.Name] = make(map[string]int)
 		}
 
+		// generate mapped positions for columns
 		mapFile.PosMap = make(map[string]int)
-
 		mapFile.Records = readCsvRecords(mapFile.Name)
 		for ogColPos, ogCol := range mapFile.Records[0] {
 			if newCol, ok := mapFile.Columns[ogCol]; ok {
@@ -77,8 +77,8 @@ func main() {
 			}
 		}
 
+		// generate mapped positions for fuzzy suggest
 		mapFile.FuzzPosMap = make(map[string]int)
-
 		for ogColPos, ogCol := range mapFile.Records[0] {
 			if newCol, ok := mapFile.FuzzColumns[ogCol]; ok {
 				if newColPos, ok := m.PosMap[newCol]; ok {
@@ -87,10 +87,6 @@ func main() {
 				}
 			}
 		}
-
-		//log.Printf("%s\n", file)
-
-		// map rows 66 to 105 as an example
 
 		// Loop through all records and ask to import each
 		log.Printf("When choosing a row to insert, you can press enter to skip, -2 to go back, -3 for new row, -4 to skip rest and save file")
@@ -110,6 +106,7 @@ func main() {
 				log.Printf("EDITING:  %s\n", strings.Join(ogRow, ", "))
 			}
 
+			// generate fuzzy suggestions and print them
 			for ogColFuzz, newColFuzz := range mapFile.FuzzPosMap {
 				suggestions := make(fuzzy.Ranks, 0)
 				fuzzEntries := make([]string, 0)
@@ -130,6 +127,7 @@ func main() {
 				}
 			}
 
+			// choose row, -1 (default) skips, -2 goes back, -3 inserts new row, -4 exits and saves
 			newRowPos := askChoiceAllowNull("Choose row to insert into")
 			if newRowPos == -1 {
 				continue
@@ -177,44 +175,19 @@ func main() {
 				newColPosMap, ok := mapFile.PosMap[strconv.Itoa(ogColPos)]
 
 				if ok {
-					//log.Printf("Found matching row: %v / %v / %s / %v\n", newColPosMap, ok, ogCol, ogColPos)
 					newRow[newColPosMap] = ogCol                                      // set [new row][new col] to old record
 					m.Records[newRowPos] = newRow                                     // set records[new pos] to new modified row
 					m.RecordMap[mapFile.Name][strconv.Itoa(ogRowPos)] = newRowPos + 1 // save recordMap[old row][new row] for history
-					//log.Printf("m.Records[newRowPos][newColPosMap]: %s\n", m.Records[newRowPos][newColPosMap])
 				}
 			}
-			//log.Printf("m.Records[newRowPos]: %s\n", m.Records[newRowPos])
-			log.Printf("INSERTED: %s\n\n", strings.Join(m.Records[newRowPos], ", "))
 
-			//for oldColPos, newColPos := range mapFile.PosMap {
-			//	log.Printf("oldColPos: %s / newColPos: %v\n", oldColPos, newColPos)
-			//	log.Printf("len(mapFile.Records[newRowPos]): %v\n", len(mapFile.Records[newRowPos]))
-			//	mapFile.Records[newColPos][newRowPos] = ogRow[ogRowPos][oldColPos]
-			//	log.Printf("mapFile.Records[newRowPos][newColPos]: %s\n", mapFile.Records[newColPos][newRowPos])
-			//}
-			//log.Printf()
+			log.Printf("INSERTED: %s\n\n", strings.Join(m.Records[newRowPos], ", "))
 		}
 	}
 
 	saveRemapped(m)
 	saveAllAsCsv(m)
-
-	//log.Printf("%s\n", m)
-
-	//chooseAndPrintColumns()
-
-	//for _, r := range records {
-	//	fmt.Printf("%s\n", r[0]) // print all from first column
-	//}
-
 }
-
-//func insertValue(records [][]string, column, row int) [][]string {
-//	if len(records) < column {
-//
-//	}
-//}
 
 func chooseFile() (string, [][]string) {
 	files, err := ioutil.ReadDir("./csv/")
