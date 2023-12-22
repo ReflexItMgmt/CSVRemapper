@@ -54,7 +54,7 @@ func main() {
 		for ogColPos, ogCol := range mapFile.Records[0] {
 			if newCol, ok := mapFile.Columns[ogCol]; ok {
 				if newColPos, ok := m.PosMap[newCol]; ok {
-					log.Printf("Mapped %s -> %s (%v -> %v)\n", ogCol, newCol, ogColPos, newColPos)
+					log.Printf("%s: Mapped %s -> %s (%v -> %v)\n", mapFile.Name, ogCol, newCol, ogColPos, newColPos)
 					mapFile.PosMap[strconv.Itoa(ogColPos)] = newColPos
 
 					// generate maximum number of columns required for new file
@@ -68,31 +68,42 @@ func main() {
 
 		// map rows 66 to 105 as an example
 
-		for ogRowPos, ogRow := range mapFile.Records {
+		for i := 0; i < len(mapFile.Records); i++ {
+			// Get row
+			ogRowPos := i
+			ogRow := mapFile.Records[ogRowPos]
+
 			// Print header for this row
 			if ogRowPos == 0 {
-				log.Printf("%s\n", strings.Join(ogRow, ", "))
-			}
-
-			if ogRowPos != 66 {
+				log.Printf("HEADER: %s\n", strings.Join(ogRow, ", "))
 				continue
 			}
 
 			// Print current row, ask for new location to insert
-			log.Printf("%s\n", strings.Join(ogRow, ", "))
+			if ogRowPos != 0 {
+				log.Printf("EDITING:  %s\n", strings.Join(ogRow, ", "))
+			}
 
-			newRowPos := askChoiceAllowNull("new row location (enter to skip)")
+			newRowPos := askChoiceAllowNull("Choose row to insert into (enter to skip, -2 to go back)")
 			if newRowPos == -1 {
 				continue
-			}
-
-			if newRowPos >= len(m.Records) {
-				log.Printf("%v is greater than the allowed %v!\n", newRowPos, len(m.Records))
+			} else if newRowPos == -2 {
+				i -= 2
 				continue
 			}
 
-			log.Printf("%s\n", strings.Join(m.Records[newRowPos], ", "))
-			if !askConfirm("confirm insert?", true) {
+			if newRowPos > len(m.Records) {
+				log.Printf("%v is greater than the allowed %v!\n", newRowPos, len(m.Records))
+				i--
+				continue
+			}
+
+			// normalize
+			newRowPos--
+
+			log.Printf("CONFIRM:  %s\n", strings.Join(m.Records[newRowPos], ", "))
+			if !askConfirm("Confirm insert?", true) {
+				i--
 				continue
 			}
 
@@ -107,14 +118,14 @@ func main() {
 				newColPosMap, ok := mapFile.PosMap[strconv.Itoa(ogColPos)]
 
 				if ok {
-					log.Printf("Found matching row: %v / %v / %s / %v\n", newColPosMap, ok, ogCol, ogColPos)
+					//log.Printf("Found matching row: %v / %v / %s / %v\n", newColPosMap, ok, ogCol, ogColPos)
 					newRow[newColPosMap] = ogCol  // set [new row][new col] to old record
 					m.Records[newRowPos] = newRow // set records[new pos] to new modified row
-
-					log.Printf("m.Records[newRowPos][newColPosMap]: %s\n", m.Records[newRowPos][newColPosMap])
+					//log.Printf("m.Records[newRowPos][newColPosMap]: %s\n", m.Records[newRowPos][newColPosMap])
 				}
 			}
-			log.Printf("m.Records[newRowPos]: %s\n", m.Records[newRowPos])
+			//log.Printf("m.Records[newRowPos]: %s\n", m.Records[newRowPos])
+			log.Printf("INSERTED: %s\n", strings.Join(m.Records[newRowPos], ", "))
 
 			//for oldColPos, newColPos := range mapFile.PosMap {
 			//	log.Printf("oldColPos: %s / newColPos: %v\n", oldColPos, newColPos)
